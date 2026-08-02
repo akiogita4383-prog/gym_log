@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0E1116">
+<title>REPS — トレーニング記録</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="REPS">
+<meta name="application-name" content="REPS">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<style>
+  :root{
+    --bg:#0E1116; --surface:#161B23; --surface2:#1F2632; --line:#2A323E;
+    --text:#EAEEF4; --muted:#8B95A7; --faint:#5B6577;
+    --accent:#5B9CFF; --accent-dim:#2C4A7A; --pr:#FFBC5C; --danger:#FF6B6B; --ok:#46D6A6;
+    --r:14px; --r-sm:10px;
+    --mono:ui-monospace,"SF Mono",Menlo,"Roboto Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+    --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans)}
+  body{font-size:15px;line-height:1.45;padding-bottom:calc(76px + var(--safe-b));max-width:560px;margin:0 auto;min-height:100vh}
+  button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:none}
+  input,textarea,select{font-family:inherit;color:var(--text)}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  ::-webkit-scrollbar{display:none}
+
+  /* Header */
+  header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,var(--bg) 70%,transparent);padding:14px 16px 8px}
+  .wordmark{display:flex;align-items:baseline;gap:8px}
+  .wordmark b{font-family:var(--mono);font-weight:700;font-size:20px;letter-spacing:.16em}
+  .wordmark span{color:var(--muted);font-size:11px;letter-spacing:.04em}
+  .datebar{display:flex;align-items:center;gap:8px;margin-top:12px}
+  .datebar .nav{width:38px;height:38px;border-radius:var(--r-sm);background:var(--surface);display:grid;place-items:center;font-size:18px;color:var(--muted)}
+  .datebar .nav:active{background:var(--surface2)}
+  .datepill{flex:1;text-align:center;background:var(--surface);border-radius:var(--r-sm);padding:8px 0}
+  .datepill .d{font-family:var(--mono);font-size:16px;font-weight:600;letter-spacing:.02em}
+  .datepill .w{font-size:11px;color:var(--muted);margin-top:1px}
+  .datepill.today .w{color:var(--accent)}
+
+  main{padding:4px 16px 28px}
+  .tab-view{display:none}.tab-view.active{display:block;animation:fade .18s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* Section */
+  .section{margin-top:18px}
+  .sec-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 9px}
+  .sec-head h2{font-size:12px;font-weight:700;letter-spacing:.13em;color:var(--muted);margin:0;text-transform:uppercase}
+  .sec-head .val{font-family:var(--mono);font-size:12px;color:var(--faint)}
+  .card{background:var(--surface);border-radius:var(--r);padding:14px}
+  .card + .card{margin-top:10px}
+
+  /* Chips */
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:9px 13px;border-radius:999px;background:var(--surface2);font-size:13.5px;color:var(--text);border:1px solid transparent;white-space:nowrap}
+  .chip:active{background:var(--accent-dim)}
+  .chip.add{background:transparent;border:1px dashed var(--line);color:var(--muted)}
+  .chip .g{color:var(--faint);font-size:11px;margin-right:5px}
+
+  /* Exercise card */
+  .ex{background:var(--surface);border-radius:var(--r);padding:13px 13px 11px;border:1px solid var(--line)}
+  .ex + .ex{margin-top:10px}
+  .ex.pr{border-color:var(--pr);box-shadow:0 0 0 1px var(--pr) inset,0 6px 24px -12px var(--pr)}
+  .ex-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .ex-name{font-weight:600;font-size:15.5px}
+  .ex-name .grp{color:var(--faint);font-size:11px;font-weight:500;margin-left:6px}
+  .ex-vol{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .x{color:var(--faint);font-size:15px;padding:2px 4px}
+
+  .setlist{margin:10px 0 0;display:flex;flex-direction:column;gap:6px}
+  .setrow{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:14px;background:var(--surface2);border-radius:var(--r-sm);padding:7px 10px}
+  .setrow .n{color:var(--faint);font-size:11px;width:20px}
+  .setrow .v{flex:1}
+  .setrow .v b{font-weight:600}
+  .setrow .v .mult{color:var(--faint);margin:0 5px}
+  .setrow .badge{color:var(--pr);font-size:11px;font-weight:600;letter-spacing:.04em}
+  .setrow .del{color:var(--faint);font-size:13px;padding:0 2px}
+
+  .stepper-wrap{display:flex;gap:8px;margin-top:11px}
+  .stepper{flex:1;background:var(--surface2);border-radius:var(--r-sm);padding:7px 8px;text-align:center}
+  .stepper .lbl{font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+  .stepper .ctrl{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:3px}
+  .stepper .pm{width:30px;height:30px;border-radius:8px;background:var(--surface);font-size:19px;color:var(--accent);display:grid;place-items:center;line-height:1}
+  .stepper .pm:active{background:var(--accent-dim)}
+  .stepper input{width:62px;background:transparent;border:none;text-align:center;font-family:var(--mono);font-size:20px;font-weight:600;-moz-appearance:textfield}
+  .stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none}
+  .stepper .unit{font-size:11px;color:var(--faint);margin-left:1px}
+
+  .btn{width:100%;padding:13px;border-radius:var(--r-sm);font-size:15px;font-weight:600;text-align:center}
+  .btn-accent{background:var(--accent);color:#08111F;margin-top:10px}
+  .btn-accent:active{filter:brightness(.92)}
+  .btn-ghost{background:var(--surface2);color:var(--text)}
+  .hint{margin-top:9px;font-size:12px;color:var(--muted);font-family:var(--mono);display:flex;align-items:center;gap:7px}
+  .hint button{color:var(--accent);font-size:12px;font-weight:600}
+
+  /* Cardio / body inputs */
+  .field-row{display:flex;gap:10px;margin-top:10px}
+  .field{flex:1;background:var(--surface2);border-radius:var(--r-sm);padding:9px 11px}
+  .field label{display:block;font-size:10px;color:var(--muted);letter-spacing:.07em;text-transform:uppercase}
+  .field .inrow{display:flex;align-items:baseline;gap:4px;margin-top:2px}
+  .field input{width:100%;background:transparent;border:none;font-family:var(--mono);font-size:19px;font-weight:600;-moz-appearance:textfield}
+  .field input::-webkit-outer-spin-button,.field input::-webkit-inner-spin-button{-webkit-appearance:none}
+  .field .unit{font-size:11px;color:var(--faint)}
+  .field.txt input{font-family:var(--sans);font-size:15px;font-weight:500}
+  .field .inrow input.t{width:2.6em}
+
+  .cardio-row{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:14px;background:var(--surface2);border-radius:var(--r-sm);padding:9px 11px;margin-top:8px}
+  .cardio-row .ico{font-size:15px}
+  .cardio-row .t{flex:1}
+  .cardio-row .meta{color:var(--muted);font-size:12.5px}
+
+  /* Mood */
+  .moods{display:flex;gap:8px;justify-content:space-between}
+  .mood{flex:1;aspect-ratio:1;max-width:56px;border-radius:var(--r-sm);background:var(--surface2);display:grid;place-items:center;font-size:24px;filter:grayscale(.6) opacity(.6)}
+  .mood.on{background:var(--accent-dim);filter:none;outline:1px solid var(--accent)}
+  textarea.memo{width:100%;margin-top:10px;background:var(--surface2);border:none;border-radius:var(--r-sm);padding:11px;font-size:14px;line-height:1.5;resize:none;min-height:64px}
+
+  .empty{color:var(--faint);font-size:13px;text-align:center;padding:14px 0}
+  .warn{margin:10px 16px 0;background:#2E1E12;border:1px solid #8A5423;color:#FFD9AD;border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.55}
+  .warn b{color:#FFB55C}
+  .data-row{display:flex;gap:10px}
+  .data-row .btn{flex:1;margin-top:0}
+  .data-status{font-size:12px;color:var(--muted);line-height:1.55;margin-top:10px}
+  .data-status b{color:var(--pr)}
+
+  /* History */
+  .hday{background:var(--surface);border-radius:var(--r);padding:13px 14px;margin-top:10px}
+  .hday .top{display:flex;align-items:center;justify-content:space-between}
+  .hday .top .dt{font-family:var(--mono);font-weight:600}
+  .hday .top .dt small{color:var(--faint);font-weight:400;margin-left:6px;font-size:11px}
+  .hday .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .tag{font-size:11px;padding:4px 8px;border-radius:6px;background:var(--surface2);color:var(--muted);font-family:var(--mono)}
+  .tag.s{color:var(--accent)}.tag.c{color:var(--ok)}.tag.b{color:var(--text)}
+  .hday .detail{display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px;font-family:var(--mono);font-size:13px;color:var(--muted)}
+  .hday.open .detail{display:block}
+  .hday .detail .line{padding:2px 0}
+  .hday .detail .line b{color:var(--text);font-weight:600}
+
+  /* Analysis */
+  .seg{display:flex;gap:6px;background:var(--surface);border-radius:var(--r-sm);padding:4px;margin-bottom:12px}
+  .seg button{flex:1;padding:8px;border-radius:8px;font-size:13px;color:var(--muted);font-weight:600}
+  .seg button.on{background:var(--surface2);color:var(--text)}
+  .chartcard{background:var(--surface);border-radius:var(--r);padding:14px}
+  .chartcard h3{margin:0 0 2px;font-size:14px}
+  .chartcard .sub{font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:10px}
+  svg.chart{width:100%;display:block;overflow:visible}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .stat{background:var(--surface);border-radius:var(--r);padding:13px}
+  .stat .k{font-size:11px;color:var(--muted);letter-spacing:.06em}
+  .stat .v{font-family:var(--mono);font-size:24px;font-weight:700;margin-top:3px}
+  .stat .v small{font-size:12px;color:var(--faint);font-weight:500}
+  select.exsel{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px;font-size:14px;margin-bottom:12px;-webkit-appearance:none;appearance:none}
+
+  /* Bottom nav */
+  nav.tabbar{position:fixed;bottom:0;left:0;right:0;max-width:560px;margin:0 auto;background:rgba(14,17,22,.86);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;padding:8px 8px calc(8px + var(--safe-b));z-index:30}
+  nav.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--faint);font-size:10.5px;font-weight:600;letter-spacing:.04em}
+  nav.tabbar button .ic{font-size:20px;line-height:1}
+  nav.tabbar button.on{color:var(--accent)}
+
+  /* Sheet (picker) */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;background:var(--surface);border-radius:20px 20px 0 0;z-index:41;transform:translateY(100%);transition:transform .26s cubic-bezier(.2,.8,.2,1);max-height:84vh;display:flex;flex-direction:column;padding-bottom:var(--safe-b)}
+  .sheet.on{transform:none}
+  .sheet .grip{width:38px;height:4px;background:var(--line);border-radius:2px;margin:10px auto 4px}
+  .sheet .sh-head{padding:6px 16px 10px;display:flex;align-items:center;justify-content:space-between}
+  .sheet .sh-head h3{margin:0;font-size:16px}
+  .sheet .sh-head button{color:var(--accent);font-size:14px;font-weight:600}
+  .search{margin:0 16px 8px;background:var(--surface2);border:none;border-radius:var(--r-sm);padding:11px 13px;font-size:15px}
+  .sh-body{overflow-y:auto;padding:4px 16px 18px}
+  .grouplbl{font-size:11px;color:var(--faint);letter-spacing:.1em;text-transform:uppercase;margin:14px 2px 7px;font-weight:700}
+  .pick{display:flex;align-items:center;justify-content:space-between;padding:12px 13px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:6px;font-size:15px}
+  .pick:active{background:var(--accent-dim)}
+  .pick .last{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .pick.new{color:var(--accent);font-weight:600}
+  .cardio-pick{display:flex;flex-wrap:wrap;gap:8px}
+
+  .toast{position:fixed;bottom:calc(90px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--line);color:var(--text);padding:10px 18px;border-radius:999px;font-size:13px;font-weight:600;z-index:60;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.pr{border-color:var(--pr);color:var(--pr)}
+</style>
+</head>
+<body>
+<header>
+  <div class="wordmark"><b>REPS</b><span>トレーニングの記録</span></div>
+  <div class="datebar">
+    <button class="nav" id="prevDay">‹</button>
+    <button class="datepill" id="datePill"><div class="d" id="dpDate">—</div><div class="w" id="dpWeek">—</div></button>
+    <button class="nav" id="nextDay">›</button>
+  </div>
+</header>
+
+<div class="warn" id="warn" style="display:none">
+  <b>⚠ このままだと記録が保存されません。</b><br>
+  自動保存するには、REPSを<b>httpsのURLで開き、ホーム画面に追加</b>して、そのアイコンから起動してください（下のREADME/手順を参照）。ローカルファイルを直接開いた状態では保存できません。当面は下の「バックアップ書き出し」で控えを取れます。
+</div>
+
+<main>
+  <!-- 記録 -->
+  <section class="tab-view active" id="tab-log">
+    <div class="section">
+      <div class="sec-head"><h2>筋トレ</h2><span class="val" id="strVol">0 kg·vol</span></div>
+      <div id="strList"></div>
+      <div class="chips" id="freqChips" style="margin-top:10px"></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-head"><h2>有酸素</h2></div>
+      <div id="cardioList"></div>
+      <div class="chips" id="cardioChips" style="margin-top:10px"></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-head"><h2>体重・体組成</h2></div>
+      <div class="card">
+        <div class="field-row">
+          <div class="field"><label>体重</label><div class="inrow"><input id="bw" type="number" inputmode="decimal" placeholder="—"><span class="unit">kg</span></div></div>
+          <div class="field"><label>体脂肪率</label><div class="inrow"><input id="bf" type="number" inputmode="decimal" placeholder="—"><span class="unit">%</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-head"><h2>メモ・気分</h2></div>
+      <div class="card">
+        <div class="moods" id="moods"></div>
+        <textarea class="memo" id="memo" placeholder="今日のコンディション、気づいたことなど…"></textarea>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-head"><h2>データ</h2><span class="val" id="saveStatus">—</span></div>
+      <div class="card">
+        <div class="data-row">
+          <button class="btn btn-ghost" id="btnExport">バックアップ書き出し</button>
+          <button class="btn btn-ghost" id="btnImport">読み込み</button>
+        </div>
+        <div class="data-status" id="dataNote"></div>
+      </div>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" style="display:none">
+  </section>
+  <section class="tab-view" id="tab-history">
+    <div id="historyList"></div>
+  </section>
+
+  <!-- 分析 -->
+  <section class="tab-view" id="tab-stats">
+    <div class="seg" id="statSeg">
+      <button class="on" data-s="overview">概要</button>
+      <button data-s="body">体重</button>
+      <button data-s="exercise">種目別</button>
+    </div>
+    <div id="statBody"></div>
+  </section>
+</main>
+
+<nav class="tabbar" id="tabbar">
+  <button class="on" data-tab="log"><span class="ic">✎</span>記録</button>
+  <button data-tab="history"><span class="ic">▤</span>履歴</button>
+  <button data-tab="stats"><span class="ic">◔</span>分析</button>
+</nav>
+
+<!-- Exercise picker sheet -->
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="exSheet">
+  <div class="grip"></div>
+  <div class="sh-head"><h3>種目を選ぶ</h3><button id="exClose">閉じる</button></div>
+  <input class="search" id="exSearch" placeholder="検索 / 新しい種目名を入力">
+  <div class="sh-body" id="exPickBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const KEY="reps_db_v1";
+
+/* ---------- default library ---------- */
+const DEFAULT_EX=[
+  ["胸",["チェストプレス","ペクトラル・フライ"]],
+  ["背中",["ロー","プルダウン"]],
+  ["肩",["ショルダープレス","リア・デルトイド"]],
+  ["脚",["シーテッド・レッグ・プレス","レッグエクステンション","レッグカール","ヒップアブダクター","ヒップアダクター"]],
+  ["体幹",["アブドミナル","トーソ・ローテーション"]],
+];
+const CARDIO_TYPES=[["🏃","トレッドミル"],["🚴","バイク"],["🌀","エリプティカル"]];
+const MOODS=["😣","😐","🙂","💪","🔥"];
+
+/* ---------- state ---------- */
+let DB;
+let curDate=new Date();
+let curTab="log";
+let stepW=2.5, stepR=1;
+
+/* ---------- storage (robust for local files) ---------- */
+let storageOK=(function(){try{localStorage.setItem("__reps_probe","1");localStorage.removeItem("__reps_probe");return true;}catch(e){return false;}})();
+function load(){
+  if(!storageOK)return freshDB();
+  try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.logs&&d.exercises)return d;}catch(e){}
+  return freshDB();
+}
+function freshDB(){const ex=[];DEFAULT_EX.forEach(([g,arr])=>arr.forEach(n=>ex.push({id:uid(),name:n,grp:g})));return {exercises:ex,logs:{},customCardio:[]};}
+function save(){if(!storageOK)return;try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){storageOK=false;onStorageLost();}}
+function onStorageLost(){const w=$("#warn");if(w)w.style.display="block";updateSaveStatus();}
+function uid(){return Math.random().toString(36).slice(2,9)}
+function migrate(){
+  const flat=[];DEFAULT_EX.forEach(([g,arr])=>arr.forEach(n=>flat.push([g,n])));
+  const machineNames=new Set(flat.map(x=>x[1]));
+  const used=new Set();for(const k in DB.logs)(DB.logs[k].strength||[]).forEach(e=>used.add(e.exId));
+  // keep the new machines, anything the user actually logged, and custom-added exercises
+  DB.exercises=DB.exercises.filter(e=>machineNames.has(e.name)||used.has(e.id)||e.grp==="その他");
+  const have=new Set(DB.exercises.map(e=>e.name));
+  flat.forEach(([g,n])=>{if(!have.has(n)){DB.exercises.push({id:uid(),name:n,grp:g});have.add(n);}});
+}
+function exportData(){
+  try{
+    const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download="reps-backup-"+key(new Date())+".json";
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    toast("バックアップを書き出しました");
+  }catch(e){toast("書き出しに失敗しました");}
+}
+function importData(file){
+  const r=new FileReader();
+  r.onload=()=>{try{
+    const d=JSON.parse(r.result);
+    if(d&&d.logs&&d.exercises){DB=d;migrate();save();renderLog();switchTab("log");toast("バックアップを読み込みました");}
+    else toast("ファイル形式が正しくありません");
+  }catch(e){toast("読み込みに失敗しました");}};
+  r.readAsText(file);
+}
+function updateSaveStatus(){
+  const s=$("#saveStatus"),n=$("#dataNote");if(!s||!n)return;
+  if(storageOK){s.textContent="自動保存 ✓";s.style.color="var(--ok)";
+    n.innerHTML="この端末に自動で保存されています。機種変更や共有の前には「バックアップ書き出し」で控えを取ってください。";}
+  else{s.textContent="自動保存 オフ";s.style.color="var(--pr)";
+    n.innerHTML="⚠ この開き方では自動保存できません。<b>ホーム画面に追加したREPSのアイコン</b>から起動するか、配信元のhttpsのURLをSafari/Chromeで開いてください。難しい場合は「<b>バックアップ書き出し</b>」で保存し、次回「読み込み」で復元できます。";}
+}
+
+/* ---------- date helpers ---------- */
+function key(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function isToday(d){return key(d)===key(new Date())}
+const WD=["日","月","火","水","木","金","土"];
+function day(){const k=key(curDate);if(!DB.logs[k])DB.logs[k]={strength:[],cardio:[],body:{},memo:{}};return DB.logs[k]}
+
+/* ---------- prefill / PR ---------- */
+function e1rm(w,r){return w*(1+r/30)}
+function lastFor(exId){
+  const keys=Object.keys(DB.logs).filter(k=>k<key(curDate)||(k===key(curDate))).sort().reverse();
+  for(const k of keys){
+    if(k===key(curDate))continue;
+    const s=DB.logs[k].strength.find(e=>e.exId===exId&&e.sets.length);
+    if(s){const last=s.sets[s.sets.length-1];return {w:last.w,r:last.r,sets:s.sets};}
+  }
+  return null;
+}
+function bestBefore(exId,excludeDateKey){
+  let best=0;
+  for(const k in DB.logs){
+    DB.logs[k].strength.forEach(e=>{if(e.exId===exId)e.sets.forEach((st,i)=>{
+      if(k===excludeDateKey)return; // exclude entire current-day adds handled by caller
+      best=Math.max(best,e1rm(st.w,st.r));
+    });});
+  }
+  return best;
+}
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg,pr){const t=$("#toast");t.textContent=msg;t.className="toast on"+(pr?" pr":"");clearTimeout(toastT);toastT=setTimeout(()=>t.className="toast",1600);}
+
+/* ---------- render: header ---------- */
+function renderHeader(){
+  $("#dpDate").textContent=(curDate.getMonth()+1)+"/"+curDate.getDate();
+  $("#dpWeek").textContent=isToday(curDate)?"今日":WD[curDate.getDay()]+"曜日";
+  $("#datePill").classList.toggle("today",isToday(curDate));
+}
+
+/* ---------- render: 筋トレ ---------- */
+function renderStrength(){
+  const list=$("#strList");list.innerHTML="";
+  const d=day();let totVol=0;
+  d.strength.forEach((e,ei)=>{
+    let vol=e.sets.reduce((a,s)=>a+s.w*s.r,0);totVol+=vol;
+    const isPr=e.sets.some(s=>s.pr);
+    const card=document.createElement("div");card.className="ex"+(isPr?" pr":"");
+    card.innerHTML=`
+      <div class="ex-top">
+        <div class="ex-name">${e.name}<span class="grp">${e.grp||""}</span></div>
+        <button class="x" data-rm="${ei}">✕</button>
+      </div>
+      <div class="setlist">${e.sets.map((s,si)=>`
+        <div class="setrow">
+          <span class="n">${si+1}</span>
+          <span class="v"><b>${fmt(s.w)}</b><span class="mult">×</span><b>${s.r}</b><span class="unit" style="color:var(--faint);font-size:11px"> kg/回</span></span>
+          ${s.pr?'<span class="badge">★ 自己ベスト</span>':""}
+          <button class="del" data-del="${ei}:${si}">✕</button>
+        </div>`).join("")}
+      </div>
+      <div class="stepper-wrap">
+        <div class="stepper"><div class="lbl">重量</div><div class="ctrl">
+          <button class="pm" data-w="${ei}:-">−</button>
+          <input class="mono" type="number" inputmode="decimal" id="w-${ei}" value="${e.draftW}"><span class="unit">kg</span>
+          <button class="pm" data-w="${ei}:+">＋</button></div></div>
+        <div class="stepper"><div class="lbl">回数</div><div class="ctrl">
+          <button class="pm" data-r="${ei}:-">−</button>
+          <input class="mono" type="number" inputmode="numeric" id="r-${ei}" value="${e.draftR}"><span class="unit">回</span>
+          <button class="pm" data-r="${ei}:+">＋</button></div></div>
+      </div>
+      <button class="btn btn-accent" data-add="${ei}">セット追加</button>
+      <div class="ex-vol mono" style="margin-top:9px;text-align:right">ボリューム ${fmt(vol)} kg</div>`;
+    list.appendChild(card);
+  });
+  $("#strVol").textContent=fmt(totVol)+" kg·vol";
+  renderFreqChips();
+}
+function fmt(n){return Number.isInteger(n)?n:(+n.toFixed(1))}
+
+function renderFreqChips(){
+  const wrap=$("#freqChips");wrap.innerHTML="";
+  const count={};
+  for(const k in DB.logs)DB.logs[k].strength.forEach(e=>count[e.exId]=(count[e.exId]||0)+1);
+  const open=new Set(day().strength.map(e=>e.exId));
+  const top=DB.exercises.filter(e=>!open.has(e.id)).sort((a,b)=>(count[b.id]||0)-(count[a.id]||0)).slice(0,5);
+  top.forEach(e=>{const c=document.createElement("button");c.className="chip";c.innerHTML=`<span class="g">${e.grp}</span>${e.name}`;c.onclick=()=>addExercise(e.id);wrap.appendChild(c);});
+  const add=document.createElement("button");add.className="chip add";add.textContent="＋ 種目を選ぶ";add.onclick=openSheet;wrap.appendChild(add);
+}
+
+function addExercise(exId){
+  const ex=DB.exercises.find(e=>e.id===exId);if(!ex)return;
+  const d=day();
+  if(d.strength.find(e=>e.exId===exId)){toast("すでに追加済み");return;}
+  const last=lastFor(exId);
+  d.strength.push({exId,name:ex.name,grp:ex.grp,sets:[],draftW:last?last.w:20,draftR:last?last.r:10});
+  save();renderStrength();
+}
+
+/* ---------- 有酸素 ---------- */
+function lastCardio(type){
+  const ks=Object.keys(DB.logs).filter(k=>k<key(curDate)).sort().reverse();
+  for(const k of ks){const arr=DB.logs[k].cardio||[];for(let j=arr.length-1;j>=0;j--)if(arr[j].type===type)return arr[j];}
+  return null;
+}
+function escA(s){return String(s).replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]))}
+function renderCardio(){
+  const list=$("#cardioList");list.innerHTML="";
+  const d=day();
+  // course autocomplete from history
+  const courses=new Set();for(const k in DB.logs)(DB.logs[k].cardio||[]).forEach(c=>{if(c.course)courses.add(c.course);});
+  const dl=`<datalist id="courseList">${[...courses].map(c=>`<option value="${escA(c)}">`).join("")}</datalist>`;
+  d.cardio.forEach((c,i)=>{
+    const ph=lastCardio(c.type)||{};
+    const card=document.createElement("div");card.className="ex";
+    card.innerHTML=`
+      <div class="ex-top">
+        <div class="ex-name">${c.ico||"🏃"} ${c.type}</div>
+        <button class="x" data-cdel="${i}">✕</button>
+      </div>
+      <div class="field-row" style="margin-top:11px">
+        <div class="field txt"><label>コース</label><div class="inrow"><input type="text" list="courseList" data-cf="${i}:course" value="${escA(c.course??"")}" placeholder="${ph.course?escA(ph.course):"マニュアル など"}"></div></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>時間</label><div class="inrow"><input class="t" type="number" inputmode="numeric" data-cf="${i}:min" value="${c.min??""}" placeholder="${ph.min??"0"}"><span class="unit">分</span><input class="t" type="number" inputmode="numeric" data-cf="${i}:sec" value="${c.sec??""}" placeholder="${ph.sec??"00"}"><span class="unit">秒</span></div></div>
+        <div class="field"><label>距離</label><div class="inrow"><input type="number" inputmode="decimal" data-cf="${i}:dist" value="${c.dist??""}" placeholder="${ph.dist??"—"}"><span class="unit">km</span></div></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>最高時速</label><div class="inrow"><input type="number" inputmode="decimal" data-cf="${i}:spdMax" value="${c.spdMax??""}" placeholder="${ph.spdMax??"—"}"><span class="unit">km/h</span></div></div>
+        <div class="field"><label>最低時速</label><div class="inrow"><input type="number" inputmode="decimal" data-cf="${i}:spdMin" value="${c.spdMin??""}" placeholder="${ph.spdMin??"—"}"><span class="unit">km/h</span></div></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>カロリー</label><div class="inrow"><input type="number" inputmode="numeric" data-cf="${i}:kcal" value="${c.kcal??""}" placeholder="${ph.kcal??"—"}"><span class="unit">kcal</span></div></div>
+      </div>
+      <textarea class="memo" data-cf="${i}:memo" placeholder="メモ（任意）" style="min-height:44px">${esc(String(c.memo??""))}</textarea>`;
+    list.appendChild(card);
+  });
+  if(!d.cardio.length){list.innerHTML='<div class="empty">記録なし</div>';}
+  else{list.insertAdjacentHTML("beforeend",dl);}
+  const wrap=$("#cardioChips");wrap.innerHTML="";
+  CARDIO_TYPES.forEach(([ico,name])=>{const c=document.createElement("button");c.className="chip";c.innerHTML=`<span class="g">${ico}</span>${name}`;c.onclick=()=>addCardio(ico,name);wrap.appendChild(c);});
+}
+function addCardio(ico,type){
+  if(day().cardio.find(c=>c.type===type)){toast("すでに追加済み");return;}
+  day().cardio.push({ico,type,course:"",min:"",sec:"",dist:"",kcal:"",spdMax:"",spdMin:"",memo:""});
+  save();renderCardio();
+}
+
+/* ---------- 体重・メモ ---------- */
+function renderBody(){const b=day().body;$("#bw").value=b.weight??"";$("#bf").value=b.fat??"";}
+function renderMemo(){
+  const m=day().memo;$("#memo").value=m.text||"";
+  const wrap=$("#moods");wrap.innerHTML="";
+  MOODS.forEach((e,i)=>{const b=document.createElement("button");b.className="mood"+(m.mood===i?" on":"");b.textContent=e;b.onclick=()=>{const mm=day().memo;mm.mood=mm.mood===i?undefined:i;save();renderMemo();};wrap.appendChild(b);});
+}
+
+/* ---------- 履歴 ---------- */
+function renderHistory(){
+  const wrap=$("#historyList");wrap.innerHTML="";
+  const keys=Object.keys(DB.logs).filter(k=>{const l=DB.logs[k];return l.strength.length||l.cardio.length||l.body.weight!=null||l.memo.text||l.memo.mood!=null;}).sort().reverse();
+  if(!keys.length){wrap.innerHTML='<div class="empty" style="padding:40px 0">まだ記録がありません。<br>「記録」タブから始めましょう。</div>';return;}
+  keys.forEach(k=>{
+    const l=DB.logs[k];const[y,mo,da]=k.split("-");const dd=new Date(+y,+mo-1,+da);
+    const vol=l.strength.reduce((a,e)=>a+e.sets.reduce((x,s)=>x+s.w*s.r,0),0);
+    const tags=[];
+    if(l.strength.length)tags.push(`<span class="tag s">筋トレ ${l.strength.length}種目</span>`);
+    if(vol)tags.push(`<span class="tag s">${fmt(vol)} kg·vol</span>`);
+    l.cardio.forEach(c=>tags.push(`<span class="tag c">${c.ico} ${c.type}${c.dist?" "+c.dist+"km":""}</span>`));
+    if(l.body.weight!=null)tags.push(`<span class="tag b">体重 ${l.body.weight}kg</span>`);
+    if(l.memo.mood!=null)tags.push(`<span class="tag">${MOODS[l.memo.mood]}</span>`);
+    const cardioDet=l.cardio.map(c=>{
+      const b=[];let tstr="";if(c.min&&c.sec)tstr=c.min+"分"+String(c.sec).padStart(2,"0")+"秒";else if(c.min)tstr=c.min+"分";else if(c.sec)tstr=c.sec+"秒";if(tstr)b.push(tstr);if(c.dist)b.push(c.dist+"km");if(c.kcal)b.push(c.kcal+"kcal");
+      const sp=[c.spdMax,c.spdMin].filter(x=>x!==""&&x!=null);if(sp.length)b.push("時速 "+sp.join("–"));
+      return `<div class="line"><b>${c.ico} ${c.type}</b>${c.course?" "+esc(String(c.course)):""}${b.length?" "+b.join(" · "):""}${c.memo?'<br><span style="color:var(--faint)">'+esc(String(c.memo))+'</span>':""}</div>`;
+    }).join("");
+    const det=l.strength.map(e=>`<div class="line"><b>${e.name}</b> ${e.sets.map(s=>fmt(s.w)+"×"+s.r).join(", ")||"—"}</div>`).join("")
+      +cardioDet
+      +(l.memo.text?`<div class="line" style="margin-top:6px;white-space:pre-wrap">📝 ${esc(l.memo.text)}</div>`:"");
+    const c=document.createElement("div");c.className="hday";
+    c.innerHTML=`<div class="top"><div class="dt">${+mo}/${+da}<small>${WD[dd.getDay()]}</small></div><div class="mono" style="color:var(--faint);font-size:12px">${k===key(new Date())?"今日":""}</div></div>
+      <div class="tags">${tags.join("")}</div>${det?`<div class="detail">${det}</div>`:""}`;
+    c.querySelector(".top").onclick=()=>c.classList.toggle("open");
+    wrap.appendChild(c);
+  });
+}
+function esc(s){return s.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]))}
+
+/* ---------- 分析 ---------- */
+let statMode="overview";
+function renderStats(){
+  const b=$("#statBody");
+  if(statMode==="overview")return renderOverview(b);
+  if(statMode==="body")return renderBodyChart(b);
+  return renderExerciseChart(b);
+}
+function renderOverview(b){
+  const keys=Object.keys(DB.logs);
+  const days=keys.filter(k=>DB.logs[k].strength.length||DB.logs[k].cardio.length).length;
+  let vol=0,sets=0;for(const k in DB.logs)DB.logs[k].strength.forEach(e=>{sets+=e.sets.length;vol+=e.sets.reduce((a,s)=>a+s.w*s.r,0);});
+  // last 8 weeks volume
+  const weekly={};const now=new Date();
+  for(const k in DB.logs){const[y,m,d]=k.split("-");const dt=new Date(+y,+m-1,+d);const diff=Math.floor((now-dt)/(7*864e5));if(diff<0||diff>7)continue;const v=DB.logs[k].strength.reduce((a,e)=>a+e.sets.reduce((x,s)=>x+s.w*s.r,0),0);weekly[diff]=(weekly[diff]||0)+v;}
+  const wv=[];for(let i=7;i>=0;i--)wv.push(weekly[i]||0);
+  b.innerHTML=`<div class="stat-grid">
+    <div class="stat"><div class="k">トレ日数</div><div class="v">${days}<small> 日</small></div></div>
+    <div class="stat"><div class="k">総セット数</div><div class="v">${sets}</div></div>
+    <div class="stat"><div class="k">総ボリューム</div><div class="v">${fmt(Math.round(vol/100)/10)}<small> t</small></div></div>
+    <div class="stat"><div class="k">今週のvol</div><div class="v">${fmt(wv[7])}<small> kg</small></div></div>
+  </div>
+  <div class="chartcard"><h3>週別ボリューム</h3><div class="sub">直近8週間 / kg·vol</div>${barChart(wv,["7週前","","","","","","先週","今週"])}</div>`;
+}
+function renderBodyChart(b){
+  const pts=[];for(const k in DB.logs){const w=DB.logs[k].body.weight;if(w!=null){const[y,m,d]=k.split("-");pts.push({t:new Date(+y,+m-1,+d).getTime(),y:w,lbl:+m+"/"+(+d)});}}
+  pts.sort((a,x)=>a.t-x.t);
+  if(pts.length<1){b.innerHTML='<div class="empty" style="padding:40px 0">体重の記録がありません</div>';return;}
+  const fat=[];for(const k in DB.logs){const f=DB.logs[k].body.fat;if(f!=null){const[y,m,d]=k.split("-");fat.push({t:new Date(+y,+m-1,+d).getTime(),y:f,lbl:+m+"/"+(+d)});}}
+  fat.sort((a,x)=>a.t-x.t);
+  const latest=pts[pts.length-1].y, first=pts[0].y, diff=+(latest-first).toFixed(1);
+  b.innerHTML=`<div class="stat-grid">
+    <div class="stat"><div class="k">現在</div><div class="v">${latest}<small> kg</small></div></div>
+    <div class="stat"><div class="k">最初から</div><div class="v" style="color:${diff<0?'var(--ok)':diff>0?'var(--pr)':'var(--text)'}">${diff>0?"+":""}${diff}<small> kg</small></div></div>
+  </div>
+  <div class="chartcard"><h3>体重の推移</h3><div class="sub">kg</div>${lineChart(pts,"var(--accent)")}</div>
+  ${fat.length?`<div class="chartcard" style="margin-top:12px"><h3>体脂肪率</h3><div class="sub">%</div>${lineChart(fat,"var(--pr)")}</div>`:""}`;
+}
+function renderExerciseChart(b){
+  const used=new Set();for(const k in DB.logs)DB.logs[k].strength.forEach(e=>used.add(e.exId));
+  const opts=DB.exercises.filter(e=>used.has(e.id));
+  if(!opts.length){b.innerHTML='<div class="empty" style="padding:40px 0">筋トレの記録がありません</div>';return;}
+  const sel=`<select class="exsel" id="exStatSel">${opts.map(e=>`<option value="${e.id}">${e.name}</option>`).join("")}</select>`;
+  const exId=window._statEx&&opts.find(e=>e.id===window._statEx)?window._statEx:opts[0].id;
+  window._statEx=exId;
+  const pts=[],volpts=[];
+  Object.keys(DB.logs).sort().forEach(k=>{
+    const e=DB.logs[k].strength.find(x=>x.exId===exId);if(!e||!e.sets.length)return;
+    const[y,m,d]=k.split("-");const t=new Date(+y,+m-1,+d).getTime();const lbl=+m+"/"+(+d);
+    const maxE=Math.max(...e.sets.map(s=>e1rm(s.w,s.r)));
+    pts.push({t,y:Math.round(maxE*10)/10,lbl});
+    volpts.push({t,y:e.sets.reduce((a,s)=>a+s.w*s.r,0),lbl});
+  });
+  const best=pts.length?Math.max(...pts.map(p=>p.y)):0;
+  b.innerHTML=sel+`<div class="stat-grid">
+    <div class="stat"><div class="k">推定1RM 最高</div><div class="v">${fmt(best)}<small> kg</small></div></div>
+    <div class="stat"><div class="k">記録回数</div><div class="v">${pts.length}</div></div>
+  </div>
+  ${pts.length?`<div class="chartcard"><h3>推定1RMの推移</h3><div class="sub">Epley式 / kg</div>${lineChart(pts,"var(--accent)")}</div>
+  <div class="chartcard" style="margin-top:12px"><h3>ボリュームの推移</h3><div class="sub">kg·vol</div>${barChart(volpts.map(p=>p.y),volpts.map(p=>p.lbl))}</div>`:'<div class="empty">データ不足</div>'}`;
+  $("#exStatSel").value=exId;
+  $("#exStatSel").onchange=e=>{window._statEx=e.target.value;renderExerciseChart(b);};
+}
+
+/* ---------- SVG charts ---------- */
+function lineChart(pts,color){
+  const W=480,H=160,pad=26;
+  if(pts.length===1)pts=[{...pts[0],t:pts[0].t-864e5},pts[0]];
+  const ys=pts.map(p=>p.y),minY=Math.min(...ys),maxY=Math.max(...ys),span=(maxY-minY)||1;
+  const x=i=>pad+(W-pad*2)*(pts.length<2?.5:i/(pts.length-1));
+  const y=v=>H-pad-(H-pad*2)*((v-minY)/span);
+  const d=pts.map((p,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(p.y).toFixed(1)).join(" ");
+  const area=`M${x(0)} ${H-pad} `+pts.map((p,i)=>"L"+x(i).toFixed(1)+" "+y(p.y).toFixed(1)).join(" ")+` L${x(pts.length-1)} ${H-pad} Z`;
+  const dots=pts.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.y).toFixed(1)}" r="2.5" fill="${color}"/>`).join("");
+  const last=pts[pts.length-1];
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">
+    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="var(--line)"/>
+    <path d="${area}" fill="${color}" opacity=".10"/>
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots}
+    <text x="${pad}" y="14" fill="var(--faint)" font-size="11" font-family="monospace">${fmt(maxY)}</text>
+    <text x="${pad}" y="${H-pad+16}" fill="var(--faint)" font-size="10" font-family="monospace">${pts[0].lbl||""}</text>
+    <text x="${W-pad}" y="${H-pad+16}" fill="var(--faint)" font-size="10" font-family="monospace" text-anchor="end">${last.lbl||""}</text>
+  </svg>`;
+}
+function barChart(vals,labels){
+  const W=480,H=160,pad=26,n=vals.length;
+  const maxV=Math.max(...vals,1);
+  const bw=(W-pad*2)/n*0.62, gap=(W-pad*2)/n;
+  const bars=vals.map((v,i)=>{
+    const h=(H-pad*2)*(v/maxV);const xx=pad+gap*i+(gap-bw)/2;const yy=H-pad-h;
+    const isLast=i===n-1;
+    return `<rect x="${xx.toFixed(1)}" y="${yy.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(h,1).toFixed(1)}" rx="3" fill="${isLast?'var(--accent)':'var(--accent-dim)'}"/>
+    ${(labels[i])?`<text x="${(xx+bw/2).toFixed(1)}" y="${H-pad+15}" fill="var(--faint)" font-size="9.5" font-family="monospace" text-anchor="middle">${labels[i]}</text>`:""}`;
+  }).join("");
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">
+    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="var(--line)"/>
+    <text x="${pad}" y="14" fill="var(--faint)" font-size="11" font-family="monospace">${fmt(maxV)}</text>${bars}</svg>`;
+}
+
+/* ---------- picker sheet ---------- */
+function openSheet(){$("#scrim").classList.add("on");$("#exSheet").classList.add("on");$("#exSearch").value="";renderPick("");setTimeout(()=>$("#exSearch").focus(),250);}
+function closeSheet(){$("#scrim").classList.remove("on");$("#exSheet").classList.remove("on");$("#exSearch").blur();}
+function renderPick(q){
+  const body=$("#exPickBody");body.innerHTML="";q=q.trim();
+  const open=new Set(day().strength.map(e=>e.exId));
+  const groups={};
+  DB.exercises.forEach(e=>{if(q&&!e.name.includes(q))return;(groups[e.grp]=groups[e.grp]||[]).push(e);});
+  const order=["胸","背中","肩","脚","体幹","腕","その他"];
+  const keys=[...new Set([...order,...Object.keys(groups)])].filter(g=>groups[g]);
+  keys.forEach(g=>{
+    const lbl=document.createElement("div");lbl.className="grouplbl";lbl.textContent=g;body.appendChild(lbl);
+    groups[g].forEach(e=>{
+      const last=lastFor(e.id);
+      const row=document.createElement("button");row.className="pick";
+      row.innerHTML=`<span>${e.name}${open.has(e.id)?' <span style="color:var(--ok);font-size:12px">✓</span>':""}</span>${last?`<span class="last">前回 ${fmt(last.w)}×${last.r}</span>`:""}`;
+      row.onclick=()=>{addExercise(e.id);closeSheet();toast(e.name+" を追加");};
+      body.appendChild(row);
+    });
+  });
+  if(q && !DB.exercises.some(e=>e.name===q)){
+    const add=document.createElement("button");add.className="pick new";add.textContent="＋「"+q+"」を新しい種目として追加";
+    add.onclick=()=>{const id=uid();DB.exercises.push({id,name:q,grp:"その他"});save();addExercise(id);closeSheet();toast(q+" を追加");};
+    body.insertBefore(add,body.firstChild);
+  }
+  if(!body.children.length)body.innerHTML='<div class="empty">該当なし。入力して新規追加できます。</div>';
+}
+
+/* ---------- tab switch ---------- */
+function switchTab(t){
+  curTab=t;
+  $$(".tab-view").forEach(v=>v.classList.toggle("active",v.id==="tab-"+t));
+  $$("#tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  if(t==="history")renderHistory();
+  if(t==="stats")renderStats();
+}
+
+/* ---------- full render of log tab ---------- */
+function renderLog(){renderHeader();renderStrength();renderCardio();renderBody();renderMemo();}
+
+/* ---------- events ---------- */
+$("#prevDay").onclick=()=>{curDate.setDate(curDate.getDate()-1);renderLog();};
+$("#nextDay").onclick=()=>{curDate.setDate(curDate.getDate()+1);renderLog();};
+$("#datePill").onclick=()=>{curDate=new Date();renderLog();toast("今日へ移動");};
+
+$("#tabbar").onclick=e=>{const b=e.target.closest("button");if(b)switchTab(b.dataset.tab);};
+$("#statSeg").onclick=e=>{const b=e.target.closest("button");if(!b)return;statMode=b.dataset.s;$$("#statSeg button").forEach(x=>x.classList.toggle("on",x===b));renderStats();};
+
+$("#scrim").onclick=closeSheet;$("#exClose").onclick=closeSheet;
+$("#exSearch").oninput=e=>renderPick(e.target.value);
+
+// strength interactions (delegated)
+$("#strList").addEventListener("click",e=>{
+  const t=e.target;
+  if(t.dataset.rm!=null){if(confirm("この種目を削除しますか？")){day().strength.splice(+t.dataset.rm,1);save();renderStrength();}return;}
+  if(t.dataset.del!=null){const[ei,si]=t.dataset.del.split(":").map(Number);day().strength[ei].sets.splice(si,1);save();renderStrength();return;}
+  if(t.dataset.w!=null){const[ei,op]=t.dataset.w.split(":");const inp=$("#w-"+ei);let v=(+inp.value||0)+(op==="+"?stepW:-stepW);v=Math.max(0,Math.round(v*4)/4);inp.value=fmt(v);day().strength[ei].draftW=v;save();return;}
+  if(t.dataset.r!=null){const[ei,op]=t.dataset.r.split(":");const inp=$("#r-"+ei);let v=(+inp.value||0)+(op==="+"?stepR:-stepR);v=Math.max(0,Math.round(v));inp.value=v;day().strength[ei].draftR=v;save();return;}
+  if(t.dataset.add!=null){addSet(+t.dataset.add);return;}
+});
+$("#strList").addEventListener("change",e=>{
+  const t=e.target;if(t.id&&t.id.startsWith("w-")){const ei=+t.id.slice(2);day().strength[ei].draftW=+t.value||0;save();}
+  if(t.id&&t.id.startsWith("r-")){const ei=+t.id.slice(2);day().strength[ei].draftR=+t.value||0;save();}
+});
+
+function addSet(ei){
+  const e=day().strength[ei];
+  const w=+($("#w-"+ei).value)||0, r=+($("#r-"+ei).value)||0;
+  if(r<=0){toast("回数を入力してください");return;}
+  const prevBest=bestBefore(e.exId,key(curDate)); // best across all OTHER days
+  // also consider today's earlier sets of this exercise
+  let todayBest=0;e.sets.forEach(s=>todayBest=Math.max(todayBest,e1rm(s.w,s.r)));
+  const benchmark=Math.max(prevBest,todayBest);
+  const isPr=benchmark>0 && e1rm(w,r)>benchmark+0.01;
+  e.sets.push({w,r,pr:isPr});
+  e.draftW=w;e.draftR=r;
+  save();renderStrength();
+  if(isPr)toast("★ 自己ベスト更新！ "+fmt(w)+"kg×"+r,true);
+}
+
+// cardio delete + field input
+$("#cardioList").addEventListener("click",e=>{if(e.target.dataset.cdel!=null){day().cardio.splice(+e.target.dataset.cdel,1);save();renderCardio();}});
+$("#cardioList").addEventListener("input",e=>{const t=e.target;if(t.dataset.cf){const[i,f]=t.dataset.cf.split(":");const isText=(f==="course"||f==="memo");day().cardio[+i][f]=isText?t.value:(t.value===""?"":+t.value);save();}});
+
+// body inputs
+$("#bw").addEventListener("input",e=>{day().body.weight=e.target.value===""?null:+e.target.value;save();});
+$("#bf").addEventListener("input",e=>{day().body.fat=e.target.value===""?null:+e.target.value;save();});
+// memo
+let memoT;$("#memo").addEventListener("input",e=>{day().memo.text=e.target.value;clearTimeout(memoT);memoT=setTimeout(save,400);});
+
+/* ---------- init ---------- */
+DB=load();migrate();save();
+$("#btnExport").onclick=exportData;
+$("#btnImport").onclick=()=>$("#importFile").click();
+$("#importFile").onchange=e=>{const f=e.target.files[0];if(f)importData(f);e.target.value="";};
+renderLog();
+updateSaveStatus();
+if(!storageOK)$("#warn").style.display="block";
+</script>
+<script>
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{navigator.serviceWorker.register("service-worker.js").catch(()=>{});});
+}
+</script>
+</body>
+</html>
