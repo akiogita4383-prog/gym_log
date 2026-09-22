@@ -1,5 +1,5 @@
 /* REPS service worker — offline app shell (cache-first) */
-const CACHE = "reps-v2";
+const CACHE = "reps-v3";
 const ASSETS = [
   "./",
   "./index.html",

@@ -632,59 +632,72 @@ function renderCardioStats(b){
   const s=$("#cardioStatSel");if(s)s.onchange=e=>{window._statCardio=e.target.value;renderCardioStats(b);};
 }
 function speedChart(rows){
-  const W=480,H=170,pad=26,n=rows.length;
+  const W=480,H=178,padL=38,padR=14,padT=16,padB=24,n=rows.length;
   const maxPts=rows.map((r,i)=>r.spdMax!=null?{i,y:r.spdMax}:null).filter(Boolean);
   const minPts=rows.map((r,i)=>r.spdMin!=null?{i,y:r.spdMin}:null).filter(Boolean);
   const all=[...maxPts,...minPts].map(p=>p.y);
   if(!all.length)return '<div class="empty">時速データなし</div>';
-  const lo=Math.min(...all),hi=Math.max(...all),span=(hi-lo)||1;
-  const x=i=>pad+(W-pad*2)*(n<2?0.5:i/(n-1));
-  const y=v=>H-pad-(H-pad*2)*((v-lo)/span);
+  const {gLo,gHi,ticks}=niceAxis(Math.min(...all),Math.max(...all),4);
+  const span=(gHi-gLo)||1;
+  const x=i=>padL+(W-padL-padR)*(n<2?.5:i/(n-1));
+  const y=v=>H-padB-(H-padT-padB)*((v-gLo)/span);
   const draw=(pts,color)=>pts.length?`<path d="${pts.map((p,j)=>(j?"L":"M")+x(p.i).toFixed(1)+" "+y(p.y).toFixed(1)).join(" ")}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`+pts.map(p=>`<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.y).toFixed(1)}" r="2.4" fill="${color}"/>`).join(""):"";
   return `<svg class="chart" viewBox="0 0 ${W} ${H}">
-    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="var(--line)"/>
+    ${yGrid(ticks,y,padL,padR,W)}
     ${draw(maxPts,"var(--accent)")}${draw(minPts,"var(--pr)")}
-    <text x="${pad}" y="14" fill="var(--faint)" font-size="11" font-family="monospace">${fmt(hi)}</text>
-    <text x="${pad}" y="${H-pad+16}" fill="var(--faint)" font-size="10" font-family="monospace">${rows[0]?rows[0].lbl:""}</text>
-    <text x="${W-pad}" y="${H-pad+16}" fill="var(--faint)" font-size="10" font-family="monospace" text-anchor="end">${rows[n-1]?rows[n-1].lbl:""}</text>
+    <text x="${padL}" y="${H-padB+16}" fill="var(--faint)" font-size="10" font-family="monospace">${rows[0]?rows[0].lbl:""}</text>
+    <text x="${W-padR}" y="${H-padB+16}" fill="var(--faint)" font-size="10" font-family="monospace" text-anchor="end">${rows[n-1]?rows[n-1].lbl:""}</text>
   </svg>
   <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;font-family:var(--mono)"><span style="color:var(--accent)">● 最高時速</span><span style="color:var(--pr)">● 最低時速</span></div>`;
 }
 
 /* ---------- SVG charts ---------- */
+function niceAxis(lo,hi,target){
+  if(!isFinite(lo)||!isFinite(hi))return {gLo:0,gHi:1,ticks:[0,1]};
+  if(hi<=lo)hi=lo+1;
+  const span=hi-lo,raw=span/target,mag=Math.pow(10,Math.floor(Math.log10(raw))),norm=raw/mag;
+  let step=norm<1.5?1:norm<3?2:norm<7?5:10;step*=mag;
+  const gLo=Math.floor(lo/step)*step,gHi=Math.ceil(hi/step)*step,ticks=[];
+  for(let v=gLo;v<=gHi+step*1e-6;v+=step)ticks.push(+v.toFixed(6));
+  return {gLo,gHi,ticks};
+}
+function axLbl(v){if(Math.abs(v)>=1000){const k=v/1000;return (Number.isInteger(k)?k:+k.toFixed(1))+"k";}return fmt(v);}
+function yGrid(ticks,y,padL,padR,W){
+  return ticks.map(t=>`<line x1="${padL}" y1="${y(t).toFixed(1)}" x2="${W-padR}" y2="${y(t).toFixed(1)}" stroke="var(--line)" opacity="${t===0?".85":".4"}"/><text x="${padL-6}" y="${(y(t)+3.5).toFixed(1)}" fill="var(--faint)" font-size="10" font-family="monospace" text-anchor="end">${axLbl(t)}</text>`).join("");
+}
 function lineChart(pts,color){
-  const W=480,H=160,pad=26;
-  if(pts.length===1)pts=[{...pts[0],t:pts[0].t-864e5},pts[0]];
-  const ys=pts.map(p=>p.y),minY=Math.min(...ys),maxY=Math.max(...ys),span=(maxY-minY)||1;
-  const x=i=>pad+(W-pad*2)*(pts.length<2?.5:i/(pts.length-1));
-  const y=v=>H-pad-(H-pad*2)*((v-minY)/span);
+  const W=480,H=172,padL=38,padR=14,padT=16,padB=24;
+  if(pts.length===1)pts=[pts[0],pts[0]];
+  const ys=pts.map(p=>p.y);
+  const {gLo,gHi,ticks}=niceAxis(Math.min(...ys),Math.max(...ys),4);
+  const span=(gHi-gLo)||1;
+  const x=i=>padL+(W-padL-padR)*(pts.length<2?.5:i/(pts.length-1));
+  const y=v=>H-padB-(H-padT-padB)*((v-gLo)/span);
+  const base=(H-padB).toFixed(1);
   const d=pts.map((p,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(p.y).toFixed(1)).join(" ");
-  const area=`M${x(0)} ${H-pad} `+pts.map((p,i)=>"L"+x(i).toFixed(1)+" "+y(p.y).toFixed(1)).join(" ")+` L${x(pts.length-1)} ${H-pad} Z`;
+  const area=`M${x(0).toFixed(1)} ${base} `+pts.map((p,i)=>"L"+x(i).toFixed(1)+" "+y(p.y).toFixed(1)).join(" ")+` L${x(pts.length-1).toFixed(1)} ${base} Z`;
   const dots=pts.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.y).toFixed(1)}" r="2.5" fill="${color}"/>`).join("");
   const last=pts[pts.length-1];
   return `<svg class="chart" viewBox="0 0 ${W} ${H}">
-    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="var(--line)"/>
+    ${yGrid(ticks,y,padL,padR,W)}
     <path d="${area}" fill="${color}" opacity=".10"/>
     <path d="${d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
     ${dots}
-    <text x="${pad}" y="14" fill="var(--faint)" font-size="11" font-family="monospace">${fmt(maxY)}</text>
-    <text x="${pad}" y="${H-pad+16}" fill="var(--faint)" font-size="10" font-family="monospace">${pts[0].lbl||""}</text>
-    <text x="${W-pad}" y="${H-pad+16}" fill="var(--faint)" font-size="10" font-family="monospace" text-anchor="end">${last.lbl||""}</text>
+    <text x="${padL}" y="${H-padB+16}" fill="var(--faint)" font-size="10" font-family="monospace">${pts[0].lbl||""}</text>
+    <text x="${W-padR}" y="${H-padB+16}" fill="var(--faint)" font-size="10" font-family="monospace" text-anchor="end">${last.lbl||""}</text>
   </svg>`;
 }
 function barChart(vals,labels){
-  const W=480,H=160,pad=26,n=vals.length;
-  const maxV=Math.max(...vals,1);
-  const bw=(W-pad*2)/n*0.62, gap=(W-pad*2)/n;
+  const W=480,H=172,padL=38,padR=14,padT=16,padB=24,n=vals.length;
+  const {gLo,gHi,ticks}=niceAxis(0,Math.max(...vals,1),4);
+  const span=(gHi-gLo)||1;
+  const y=v=>H-padB-(H-padT-padB)*((v-gLo)/span);
+  const plot=W-padL-padR,gap=plot/n,bw=gap*0.62,base=H-padB;
   const bars=vals.map((v,i)=>{
-    const h=(H-pad*2)*(v/maxV);const xx=pad+gap*i+(gap-bw)/2;const yy=H-pad-h;
-    const isLast=i===n-1;
-    return `<rect x="${xx.toFixed(1)}" y="${yy.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(h,1).toFixed(1)}" rx="3" fill="${isLast?'var(--accent)':'var(--accent-dim)'}"/>
-    ${(labels[i])?`<text x="${(xx+bw/2).toFixed(1)}" y="${H-pad+15}" fill="var(--faint)" font-size="9.5" font-family="monospace" text-anchor="middle">${labels[i]}</text>`:""}`;
+    const yy=y(v),h=Math.max(base-yy,1),xx=padL+gap*i+(gap-bw)/2,isLast=i===n-1;
+    return `<rect x="${xx.toFixed(1)}" y="${yy.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${isLast?'var(--accent)':'var(--accent-dim)'}"/>${labels[i]?`<text x="${(xx+bw/2).toFixed(1)}" y="${base+15}" fill="var(--faint)" font-size="9.5" font-family="monospace" text-anchor="middle">${labels[i]}</text>`:""}`;
   }).join("");
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}">
-    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="var(--line)"/>
-    <text x="${pad}" y="14" fill="var(--faint)" font-size="11" font-family="monospace">${fmt(maxV)}</text>${bars}</svg>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}">${yGrid(ticks,y,padL,padR,W)}${bars}</svg>`;
 }
 
 /* ---------- picker sheet ---------- */
