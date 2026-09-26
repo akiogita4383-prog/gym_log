@@ -129,6 +129,17 @@
   .data-row .btn{flex:1;margin-top:0}
   .data-status{font-size:12px;color:var(--muted);line-height:1.55;margin-top:10px}
   .data-status b{color:var(--pr)}
+  .sync-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .sync-row span{color:var(--muted)}
+  .sync-row .gid{font-size:11px;max-width:58%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fld{display:block;margin:12px 0}
+  .fld span{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;letter-spacing:.03em}
+  .fld input{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 12px;font-size:15px;font-family:var(--mono);color:var(--text)}
+  .fld input:focus{outline:none;border-color:var(--accent)}
+  .how{margin-top:12px;font-size:12px;color:var(--muted)}
+  .how summary{cursor:pointer;color:var(--accent);font-weight:600;padding:4px 0}
+  .how ol{margin:8px 0;padding-left:18px;line-height:1.75}
+  .how code{background:var(--surface2);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:11px}
 
   /* History */
   .hday{background:var(--surface);border-radius:var(--r);padding:13px 14px;margin-top:10px}
@@ -245,6 +256,11 @@
         <div class="data-status" id="dataNote"></div>
       </div>
     </div>
+
+    <div class="section">
+      <div class="sec-head"><h2>クラウド同期</h2><span class="val" id="syncBadge"></span></div>
+      <div class="card" id="syncCard"></div>
+    </div>
     <input type="file" id="importFile" accept="application/json,.json" style="display:none">
   </section>
   <section class="tab-view" id="tab-history">
@@ -310,16 +326,27 @@ function load(){
   try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.logs&&d.exercises)return d;}catch(e){}
   return freshDB();
 }
-function freshDB(){const ex=[];DEFAULT_EX.forEach(([g,arr])=>arr.forEach(n=>ex.push({id:uid(),name:n,grp:g})));return {exercises:ex,logs:{},customCardio:[]};}
-function save(){if(!storageOK)return;try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){storageOK=false;onStorageLost();}}
+function freshDB(){const ex=[];DEFAULT_EX.forEach(([g,arr])=>arr.forEach(n=>ex.push({id:uid(),name:n,grp:g})));return {exercises:ex,logs:{},customCardio:[],updatedAt:Date.now()};}
+function save(opts){
+  DB.updatedAt=Date.now();
+  if(storageOK){try{
+    const prev=localStorage.getItem(KEY);if(prev)localStorage.setItem(KEY+"_prev",prev);
+    localStorage.setItem(KEY,JSON.stringify(DB));
+  }catch(e){storageOK=false;onStorageLost();}}
+  if(!(opts&&opts.noSync))scheduleSync();
+}
 function onStorageLost(){const w=$("#warn");if(w)w.style.display="block";updateSaveStatus();}
 function uid(){return Math.random().toString(36).slice(2,9)}
 function migrate(){
   const flat=[];DEFAULT_EX.forEach(([g,arr])=>arr.forEach(n=>flat.push([g,n])));
   const machineNames=new Set(flat.map(x=>x[1]));
   const used=new Set();for(const k in DB.logs)(DB.logs[k].strength||[]).forEach(e=>used.add(e.exId));
-  // keep the new machines, anything the user actually logged, and custom-added exercises
-  DB.exercises=DB.exercises.filter(e=>machineNames.has(e.name)||used.has(e.id)||e.grp==="その他");
+  DB.exercises=(DB.exercises||[]).filter(e=>machineNames.has(e.name)||used.has(e.id)||e.grp==="その他");
+  // 同名の重複を1つに（記録に使われているIDを優先して残す＝ログのリンク切れを防ぐ）
+  DB.exercises.sort((a,b)=>(used.has(b.id)?1:0)-(used.has(a.id)?1:0));
+  const seen={},kept=[];
+  DB.exercises.forEach(e=>{if(seen[e.name])return;seen[e.name]=1;kept.push(e);});
+  DB.exercises=kept;
   const have=new Set(DB.exercises.map(e=>e.name));
   flat.forEach(([g,n])=>{if(!have.has(n)){DB.exercises.push({id:uid(),name:n,grp:g});have.add(n);}});
 }
@@ -348,6 +375,147 @@ function updateSaveStatus(){
     n.innerHTML="この端末に自動で保存されています。機種変更や共有の前には「バックアップ書き出し」で控えを取ってください。";}
   else{s.textContent="自動保存 オフ";s.style.color="var(--pr)";
     n.innerHTML="⚠ この開き方では自動保存できません。<b>ホーム画面に追加したREPSのアイコン</b>から起動するか、配信元のhttpsのURLをSafari/Chromeで開いてください。難しい場合は「<b>バックアップ書き出し</b>」で保存し、次回「読み込み」で復元できます。";}
+}
+
+/* ---------- クラウド同期 (GitHub Gist) ---------- */
+const SKEY="reps_sync", GH="https://api.github.com", GFILE="reps-data.json";
+let sync={token:"",gist:"",lastPush:0,enabled:false};
+let syncing=false,syncTimer=null,pulledOK=false;
+function syncLoad(){try{const s=JSON.parse(localStorage.getItem(SKEY));if(s)sync=Object.assign(sync,s);}catch(e){}}
+function syncSave(){try{localStorage.setItem(SKEY,JSON.stringify(sync));}catch(e){}}
+function ghHeaders(){return {"Authorization":"Bearer "+sync.token,"Accept":"application/vnd.github+json","Content-Type":"application/json"};}
+async function ghCreate(){
+  const res=await fetch(GH+"/gists",{method:"POST",headers:ghHeaders(),body:JSON.stringify({description:"REPS training data (private)",public:false,files:{[GFILE]:{content:JSON.stringify(DB)}}})});
+  if(!res.ok)throw new Error("http "+res.status);
+  return (await res.json()).id;
+}
+async function ghGet(){
+  const res=await fetch(GH+"/gists/"+sync.gist,{headers:ghHeaders(),cache:"no-store"});
+  if(res.status===404)throw new Error("not-found");
+  if(!res.ok)throw new Error("http "+res.status);
+  const j=await res.json(),f=j.files&&j.files[GFILE];
+  if(!f)return null;
+  let c=f.content;
+  if(f.truncated&&f.raw_url){c=await (await fetch(f.raw_url,{cache:"no-store"})).text();}
+  try{return JSON.parse(c);}catch(e){return null;}
+}
+async function ghUpdate(){
+  const res=await fetch(GH+"/gists/"+sync.gist,{method:"PATCH",headers:ghHeaders(),body:JSON.stringify({files:{[GFILE]:{content:JSON.stringify(DB)}}})});
+  if(!res.ok)throw new Error("http "+res.status);
+}
+function mergeDB(A,B){
+  A=A||freshDB();B=B||freshDB();
+  const newer=(A.updatedAt||0)>=(B.updatedAt||0)?A:B;
+  const out={exercises:[],logs:{},customCardio:(newer.customCardio||A.customCardio||B.customCardio||[]),updatedAt:Math.max(A.updatedAt||0,B.updatedAt||0)};
+  const exMap={};
+  (A.exercises||[]).forEach(e=>exMap[e.id]=e);
+  (B.exercises||[]).forEach(e=>{if(newer===B||!exMap[e.id])exMap[e.id]=e;});
+  out.exercises=Object.values(exMap);
+  const keys=new Set([...Object.keys(A.logs||{}),...Object.keys(B.logs||{})]);
+  keys.forEach(k=>{const la=A.logs&&A.logs[k],lb=B.logs&&B.logs[k];out.logs[k]=(la&&lb)?((newer.logs&&newer.logs[k])||la):(la||lb);});
+  return out;
+}
+function ghErrMsg(m){
+  if(m==="not-found")return "Gist IDが見つかりません";
+  if(/401/.test(m))return "トークンが無効です（gist権限か確認）";
+  if(/403/.test(m))return "アクセス拒否（権限または回数制限）";
+  if(/Failed to fetch|NetworkError/i.test(m))return "ネットワークに接続できません";
+  return "接続に失敗しました";
+}
+function setSyncUI(state,extra){
+  const el=$("#syncStatus");if(!el)return;
+  const map={idle:["—","var(--faint)"],pending:["変更あり（まもなく同期）","var(--muted)"],syncing:["同期中…","var(--accent)"],ok:["同期済み ✓","var(--ok)"],err:["同期エラー","var(--pr)"]};
+  const m=map[state]||map.idle;
+  el.textContent=m[0]+(extra&&state==="err"?"（"+ghErrMsg(extra)+"）":"");
+  el.style.color=m[1];
+  const last=$("#syncLast");if(last&&state==="ok")last.textContent=fmtTime(sync.lastPush);
+}
+function scheduleSync(){
+  if(!sync.enabled||!sync.token||!sync.gist)return;
+  clearTimeout(syncTimer);setSyncUI("pending");
+  syncTimer=setTimeout(pushNow,2500);
+}
+async function pushNow(){
+  if(!sync.enabled||!sync.token||!sync.gist)return;
+  if(syncing){clearTimeout(syncTimer);syncTimer=setTimeout(pushNow,1500);return;}
+  syncing=true;setSyncUI("syncing");
+  try{
+    // 上書きの前に必ずリモートと突き合わせる（未確認のリモートを潰さない安全弁）
+    if(!pulledOK){const remote=await ghGet();if(remote){DB=mergeDB(DB,remote);migrate();renderLog();}pulledOK=true;}
+    await ghUpdate();sync.lastPush=Date.now();syncSave();setSyncUI("ok");
+  }catch(e){setSyncUI("err",e.message);}
+  finally{syncing=false;}
+}
+async function pullNow(silent){
+  if(!sync.enabled||!sync.token||!sync.gist)return;
+  if(syncing)return;
+  syncing=true;setSyncUI("syncing");
+  try{
+    const remote=await ghGet();
+    if(remote){DB=mergeDB(DB,remote);migrate();save({noSync:true});await ghUpdate();sync.lastPush=Date.now();syncSave();renderLog();}
+    pulledOK=true;setSyncUI("ok");if(!silent)toast("同期しました");
+  }catch(e){setSyncUI("err",e.message);if(!silent)toast(ghErrMsg(e.message));}
+  finally{syncing=false;}
+}
+async function syncConnect(){
+  const tok=($("#ghToken").value||"").trim(),gid=($("#ghGist").value||"").trim();
+  if(!tok){toast("トークンを入力してください");return;}
+  sync.token=tok;sync.gist=gid;sync.enabled=true;setSyncUI("syncing");
+  try{
+    if(!sync.gist){sync.gist=await ghCreate();pulledOK=true;}
+    else{const remote=await ghGet();if(remote){DB=mergeDB(DB,remote);migrate();}pulledOK=true;}
+    save({noSync:true});await ghUpdate();
+    sync.lastPush=Date.now();syncSave();
+    renderLog();renderSyncCard();setSyncUI("ok");toast("クラウド同期を開始しました");
+  }catch(e){
+    sync.enabled=false;syncSave();renderSyncCard();
+    const s=$("#syncStatus");if(s){s.textContent=ghErrMsg(e.message);s.style.color="var(--pr)";}
+    toast(ghErrMsg(e.message));
+  }
+}
+function syncDisconnect(){
+  if(!confirm("この端末での自動同期を解除します。クラウド上のデータは残ります。よろしいですか？"))return;
+  sync={token:"",gist:"",lastPush:0,enabled:false};pulledOK=false;syncSave();renderSyncCard();toast("同期を解除しました");
+}
+function fmtTime(ms){if(!ms)return "—";const d=new Date(ms);return (d.getMonth()+1)+"/"+d.getDate()+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
+function renderSyncCard(){
+  const c=$("#syncCard");if(!c)return;
+  const badge=$("#syncBadge");
+  if(sync.enabled&&sync.gist){
+    if(badge){badge.textContent="接続中";badge.style.color="var(--ok)";}
+    c.innerHTML=`
+      <div class="sync-row"><span>状態</span><b id="syncStatus" class="mono">同期済み ✓</b></div>
+      <div class="sync-row"><span>最終同期</span><span class="mono" id="syncLast">${fmtTime(sync.lastPush)}</span></div>
+      <div class="sync-row"><span>Gist ID</span><span class="mono gid">${sync.gist}</span></div>
+      <div class="data-row" style="margin-top:12px">
+        <button class="btn btn-ghost" id="btnSyncNow">今すぐ同期</button>
+        <button class="btn btn-ghost" id="btnCopyGist">Gist IDをコピー</button>
+      </div>
+      <button class="btn btn-ghost" id="btnDisconnect" style="margin-top:8px">同期を解除</button>
+      <div class="data-status">別の端末では、同じ<b>トークン</b>とこの<b>Gist ID</b>を入力すれば記録を引き継げます。トークンはこの端末内だけに保存され、通信はGitHubのみ。GitHubの設定からいつでも無効化できます。</div>`;
+    $("#btnSyncNow").onclick=()=>pullNow(false);
+    $("#btnDisconnect").onclick=syncDisconnect;
+    $("#btnCopyGist").onclick=()=>{try{navigator.clipboard.writeText(sync.gist);toast("Gist IDをコピーしました");}catch(e){toast(sync.gist);}};
+  }else{
+    if(badge){badge.textContent="";}
+    c.innerHTML=`
+      <div class="data-status" style="margin-top:0">GitHubに<b>非公開</b>で自動保存します。端末のデータが消えても、同じトークンで元に戻せます。</div>
+      <label class="fld"><span>GitHubトークン（gist権限）</span><input type="password" id="ghToken" placeholder="ghp_… / github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="fld"><span>Gist ID（任意・別端末から復元する時だけ入力）</span><input type="text" id="ghGist" placeholder="空欄でOK（新規作成します）" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <button class="btn btn-accent" id="btnConnect" style="margin-top:4px">接続してクラウド保存を開始</button>
+      <div id="syncStatus" class="mono" style="font-size:12px;margin-top:8px;color:var(--faint)"></div>
+      <details class="how"><summary>トークンの作り方（1分）</summary>
+        <ol>
+          <li>GitHub → 右上のアイコン → <b>Settings</b></li>
+          <li>左下 <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Tokens (classic)</b></li>
+          <li><b>Generate new token (classic)</b> を選ぶ</li>
+          <li>Scopes（権限）は <b>gist</b> だけにチェック</li>
+          <li>作成された <code>ghp_…</code> をコピーして上の欄に貼り付け → 接続</li>
+        </ol>
+        <div>※ gist権限だけのトークンは、非公開メモ(gist)の読み書き以外はできません。万一漏れても影響は最小で、GitHubからいつでも失効できます。</div>
+      </details>`;
+    $("#btnConnect").onclick=syncConnect;
+  }
 }
 
 /* ---------- date helpers ---------- */
@@ -791,12 +959,15 @@ $("#bf").addEventListener("input",e=>{day().body.fat=e.target.value===""?null:+e
 let memoT;$("#memo").addEventListener("input",e=>{day().memo.text=e.target.value;clearTimeout(memoT);memoT=setTimeout(save,400);});
 
 /* ---------- init ---------- */
-DB=load();migrate();save();
+syncLoad();
+DB=load();migrate();save({noSync:true});
 $("#btnExport").onclick=exportData;
 $("#btnImport").onclick=()=>$("#importFile").click();
 $("#importFile").onchange=e=>{const f=e.target.files[0];if(f)importData(f);e.target.value="";};
 renderLog();
 updateSaveStatus();
+renderSyncCard();
+if(sync.enabled&&sync.token&&sync.gist)pullNow(true);
 if(!storageOK)$("#warn").style.display="block";
 </script>
 <script>

@@ -1,5 +1,5 @@
 /* REPS service worker — offline app shell (cache-first) */
-const CACHE = "reps-v3";
+const CACHE = "reps-v4";
 const ASSETS = [
   "./",
   "./index.html",
@@ -28,6 +28,9 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
+  // Only handle same-origin requests. Cross-origin (e.g. GitHub API for cloud
+  // sync) must go straight to the network, never cached/intercepted.
+  if (new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
